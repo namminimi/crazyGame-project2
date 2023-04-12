@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            margin-top: 100px;
+            padding-left: 200px;
+        }
+        canvas{
+            background-image: url("./img/street.png");
+            background-position: left center;
+            background-repeat: no-repeat;
+            background-size: cover;
+        }
+        p{
+            font-size: 30px;
+            position: absolute;
+            top: 50px;
+            left: 200px;
+            font-weight: bold;
+        }
+        #imgs img{
+            width: 100px;
+            height: 100px;
+            position: absolute;
+        }
+        #imgs img:nth-child(1){
+            top: 200px;
+            left: 300px;
+        }
+        #imgs img:nth-child(2){
+            top: 300px;
+            left: 270px;
+        }
+        #imgs img:nth-child(3){
+            top: 600px;
+            left: 270px;
+        }
+        #imgs img:nth-child(4){
+            top: 250px;
+            left: 880px;
+        }
+        #imgs img:nth-child(5){
+            top: 700px;
+            left: 900px;
+        }
+        .on {
+            display: none;
+        }
+    </style>
+</head>
+<body onkeydown="keydown()" onkeyup="keyup()">
+    <canvas width="1500px" height="800px"></canvas>
+    <p>기회 3번 입니다!!!</p>
+    <div id="imgs">
+        <img src="./img/c21pre-century21president.gif" alt="">
+        <img src="./img/giphy (9).gif" alt="">
+        <img src="./img/girl-female.gif" alt="">
+        <img src="./img/no-sign.gif" alt="">
+        <img src="./img/arrow-kws.gif" alt="">
+    </div> 
+    <script>
+        const canvas = document.querySelector("canvas");
+        const ctx = canvas.getContext("2d");
+        const p = document.querySelector("p");
+        const imgs = document.querySelector("#imgs")
+        
+        //캐릭터, 자동차 배치
+        //캐릭터 조작
+        //자동차 자동 이동
+        //반대편 도달시 점수 1점 오르고 캐릭터는 다시 원점
+        
+        //변수 정의
+        let animation;
+        let clearInt;
+        let timer = 0;
+        let life = 3
+        let score = 0
+        
+        //게임 상태
+        let STATE_WAIT = 0;
+        let STATE_RUN = 1;
+        let STATE_GAMEOVER = 2;
+        let state = STATE_WAIT;
+
+        //el 생성()
+        let newDiv = document.createElement("div");
+        let newUl = document.createElement("ul");
+        let body = document.body;
+        let p2 = document.createElement("p");
+
+        //score div 생성 
+        body.appendChild(newDiv)
+        newDiv.id = "score";
+        newDiv.innerText = `Score: ${score}`;
+        newDiv.style = "font-size: 30px; position: absolute; top: 50px; left: 1590px";
+
+        body.appendChild(p2);
+        p2.innerText = "방향키: 위: w, 아래: s, 좌: a, 우: d / 5초 뒤에 이동 가능"
+        p2.style = "font-size: 30px; position: absolute; top: 900px; left: 200px";
+        
+        //score ul, li 생성 1점당 1커비(이미지)
+       /*  function addLi() {
+            if(life > 0) {
+                let newLi = document.createElement("li");
+                let newImg = document.createElement("img");
+                body.appendChild(newUl);
+                newUl.id = "imgPlus";
+                newUl.style = "font-size: 30px; position: absolute; top: 100px; \
+                left: 1600px; display: flex; flex-wrap: wrap; width: 100px";
+                newUl.appendChild(newLi);
+                newLi.appendChild(newImg);
+                newLi.style = "list-style: none; font-size: 5px"
+                newImg.src = "./img/waddle-kirby.gif";
+                newImg.style = "width: 30px; height: 30px;"
+            }
+            if(life == 0) {
+                console.log("삭제삭제")
+                console.log(life)
+                //newLi.removeChild(newImg);
+                newUl.removeChild(newLi);
+            }
+        } */
+
+        //플레이어 이동 방향과 속도
+        let dx = 0;
+        let dy = 0;
+
+        //키 이벤트로 인해 인식된 keycode변수
+        let keycode;
+        let kcode = []
+
+        //유저 캐릭 
+        let imgElem = new Image();
+        imgElem.src = "./img/waddle-kirby.gif"
+
+        //filltext
+        function drawText(ctx, text, x, y, font, color, align, base) {
+            if(font) ctx.font = font;
+            if(color) ctx.fillStyle = color;
+            if(align) ctx.textAlign = align;
+            if(base) ctx.textBaseline = base;
+           
+            ctx.fillText(text, x, y);
+        }
+
+        //fillRect
+        function drawRect(ctx, color ,x, y, width, height) {
+            if(color) ctx.fillStyle = color;
+            ctx.fillRect(x, y, width, height);
+        }
+
+        //내캐릭터 이미지 객체 생성
+        let my_char = {
+            x: 0,
+            y: 350,
+            w: 80,
+            h: 80,
+            draw(){
+                ctx.drawImage(imgElem, this.x, this.y, this.w, this.h)
+                drawText(ctx, "<커비>", this.x+45, this.y, "bold 20px Arial, sans-serif", "black")
+                
+            },
+            moveAll() {
+                this.x += dx
+                this.y += dy
+                //canvas 밖으로 못나가게 제한
+                if(this.x <= 0 ) {
+                    this.x = 0;
+                }else if(this.x >= 1420 ) {
+                    this.x = 1420;
+                }
+                //canvas 밖으로 못나가게 제한
+                if(this.y <= 0 ) {
+                    this.y = 0;
+                }else if(this.y >= 720) {
+                    this.y = 720;
+                }
+                //반대편 이동했을 때 점수 +1 
+                if(this.x > 1280 & life > 0) {
+                    score += 1;
+                    newDiv.innerText = `Score: ${score}`;
+                    //addLi()
+                    this.x = 0
+                    this.y = 350
+                } 
+            }
+        }
+
+        let my_char2 = {
+            x: 1280,
+            y: 0,
+            w: 80,
+            h: 80,
+            draw(){
+                ctx.fillStyle = "blue";
+                ctx.fillRect(this.x, this.y, this.w, this.h);
+                //이미지 생성일때 bind안할시 this가 객체를 바라보지 않음
+            }
+        }
+        //캐릭터 컨트롤
+        function loaded(){
+            runGame()
+            clearInt = setInterval(runGame, 10)
+        }
+        
+        //이동 
+        function runGame(){ 
+            setTimeout(function() {
+                my_char.moveAll(); 
+            }, 5000);  
+            
+        }
+        
+        //장애물(차) 배열/////////////////////////////////////
+        let cars = [];
+        let cars2 = [];
+        let lineY = [];
+        //////////////////왼쪽 도로 차 생성//////////////////
+        class New_car {
+            constructor(index,x, carImg){
+                this.index = index
+                this.x = x;
+                this.y = 0;
+                //this.speed = speed;
+                this.width = 150;
+                this.height = 150;
+                this.carImg = carImg;
+            }
+            draw() {
+                let car = new Image();
+                car.src = this.carImg
+                ctx.drawImage(car, this.x, this.y, this.width, this.height)
+            }
+        }
+
+        /////////////////////오른쪽 도로 차 생성//////////////////
+        class New_car2 {
+            constructor(index,x,carImg){
+                this.index = index
+                this.x = x;
+                this.y = 800;
+                //this.speed = speed;
+                this.width = 150;
+                this.height = 150;
+                this.carImg = carImg;
+            }
+            draw() {
+                let car2 = new Image();
+                car2.src = this.carImg
+                ctx.drawImage(car2, this.x, this.y, this.width, this.height)
+            }
+        }
+        // 도로에 자동차 생성 함수///////////////////////////
+        function startFrame() {
+            timer++;
+            //console.log(timer)
+            //캔버스 지우기
+            ctx.clearRect(0,0,canvas.width, canvas.height)
+            animation = requestAnimationFrame(startFrame)
+            //공통셋업
+            left() //왼쪽 자동차 호출
+            right() //오른쪽 자동차 호출
+            my_char.draw() // 캐릭터 호출
+            //my_char2.draw()
+            
+            function left(){
+                //왼쪽 도로 자동차 생산시작
+                if(timer % 120 == 0) {
+                    //180초마다 생성
+                    let tempX, tempY, ncar;
+                    let street_num = [170, 295, 430, 550]
+                    let carList = ["./img/car1.png","./img/car2.png","./img/car3.png","./img/car4.png"]
+                    for(let i = 0; i< 4; i++) {
+                        //speed는 랜덤 1~ 5으로 지정 x
+                        //y값은 0으로 고정
+                        //x 값은 각 도로 위치에  4개 랜덤 배치
+                        tempX = Math.floor(Math.random() * street_num.length)
+                        tempY = Math.floor(Math.random() * carList.length)
+                        
+                         
+                        ncar = new New_car(i,street_num[tempX], carList[tempY])
+                        cars.push(ncar)
+                    }
+                }
+                //자동차 밑에서 아래로
+                cars.forEach((item,index,arr)=>{
+                    if(item.y == 800) {
+                        arr.splice(index, 1)
+                        //console.log(arr)
+                    }
+                    item.y+= 2;
+                    item.draw()
+                    //충돌 확인
+                    crashCheck(my_char, item);
+                })
+
+            }
+            function right(){
+                //오른쪽 도로 자동차 생산시작
+                if(timer % 120 == 0) {
+                let tempX, tempY, ncar;
+                let street_num = [790, 910, 1050, 1170]
+                let carList = ["./img/car1-1.png","./img/car2-1.png","./img/car3-1.png","./img/car4-1.png"]
+                for(let i = 0; i< 4; i++) {
+                    //speed는 랜덤 1~ 5으로 지정 x
+                    //y값은 0으로 고정
+                    //x 값은 각 도로 위치에  4개 랜덤 배치
+                    tempX = Math.floor(Math.random() * street_num.length)
+                    tempY = Math.floor(Math.random() * carList.length)
+
+                    //console.log(`${tempY}startFrame2입니다`)
+                    if(!sameNume(tempY)){
+                        ncar = new New_car2(i,street_num[tempX], carList[tempY])
+                        cars2.push(ncar)
+                    }
+                   function sameNume(tempY) {
+                        cars2.find((e)=> {
+                            if(e === carList[tempY]) {
+                                cars2.splice(e, 1)
+                            } 
+                        });
+                    }
+                }
+              }
+                //자동차 밑에서 위로(자동차 이미지 반대로 뒤집음)
+                cars2.forEach((item,index,arr)=>{
+                    if(item.y == 0) {
+                        arr.splice(index, 1)
+                    }
+                    item.y-= 2;
+                    item.draw()
+                    //충돌 확인 함수로 이동
+                    crashCheck(my_char, item);
+                })    
+            }
+            
+        }   
+        //충돌 확인 및 라이프 감소
+        function crashCheck(user, bot) {
+            let x = bot.x - user.x
+            let y = bot.y - user.y; //0 - (350 + 50/2) -375
+            let xy = x * x + y* y
+            //console.log(x, y, xy)
+            if(x <= 50 && x >= -100 && xy <= 4000 && xy >= 0 ) {
+                console.log("충돌")
+                if(life >= 1) {
+                    my_char.x = 0
+                    my_char.y = 350
+                    life = life - 1;
+                    //console.log(`라이프는 ${life}`)
+                    //addLi();
+                }
+            }
+            //life 깍일때 마다 멘트 변경
+            if(life == 3) {
+                p.innerHTML=`기회 ${life}번 입니다!!!`
+            } else if (life == 2 && score > 0) {
+                p.innerHTML=`기회 ${life}번 입니다!!!`
+            } else if (life == 2 && score == 0) {
+                p.innerHTML=`기회 ${life}번 입니다!!! 할 수 있어요??ㅋㅋㅋㅋ`
+            } else if (life == 1 && score > 0) {
+                p.innerHTML=`기회 ${life}번 입니다!!!`
+            } else if (life == 1 && score == 0) {
+                p.innerHTML=`기회 ${life}번 입니다!!! ㅋㅋㅋㅋ 와... 1점도 못먹어ㅋㅋ`
+            }
+            
+            // life 0과 동시에 모든 캐릭터 지우기
+            if(life == 0 && score == 0) {
+                p.innerHTML=`기회 ${life}번 good game이요 게임 진짜 못하십니다`
+                end();
+            }else if(life == 0 && score > 0){
+                    p.innerHTML=`기회 ${life}번 good game이요`
+                    end();
+                }
+        }
+        //게임 종료
+        function end() {
+            state = STATE_GAMEOVER;
+            my_char.x = -50;
+            my_char.y = -100;
+            cancelAnimationFrame(animation); //애니메이션 멈춤
+            clearInterval(clearInt); //캐릭터 멈춤
+            ctx.clearRect(0,0,canvas.width, canvas.height); 
+            imgs.classList.add("on");
+            draw();
+        }
+        //체크용
+        canvas.addEventListener("click",(e)=>{
+            let mouseX = e.layerX
+            let mouseY = e.layerY;
+            console.log(mouseX, mouseY)
+        })
+        //키 이벤트 
+        function keydown() {
+            //눌러진 key의 코드값
+            keycode = event.keyCode;
+            //console.log(keycode)
+            kcode[keycode] = true
+            //console.log(kcode)
+            switch(keycode){
+                case 65: 
+                    dx = -3; 
+                    break; //left
+                case 87: 
+                    dy = -3; 
+                    break; //up
+                case 68: 
+                    dx = 3; 
+                    break; //right
+                case 83: 
+                    dy = 3; 
+                    break; //down
+            }
+        }
+
+        function keyup(){
+            //떨어진 key코드값
+            keycode=event.keyCode;
+            //console.log(keycode)
+            kcode[keycode] = false
+            //console.log(kcode)
+            switch(keycode) {
+                case 65:
+                case 68: dx=0; break;
+                case 87:
+                case 83: dy=0; break;
+            }
+        }
+
+        window.addEventListener("load", function(){
+            gameStart()
+            setInterval(gameStart, 30)
+        })
+
+        //게임 진행
+        function gameStart() {
+            //console.log(`현재 게임 상태${state}`)
+            switch(state) {
+                case STATE_WAIT:
+                //console.log("게임 스타트쪽 스테이트 웨잇임")
+                case STATE_GAMEOVER: 
+                    //console.log("스테이트쪽 게임 오버쪽 엔터 대기중") 
+                    if(kcode[13] == true) {
+                        life = 3;
+                        score = 0;
+                        newDiv.innerText = `Score: ${score}`;
+                        imgs.classList.remove("on");
+                        my_char.x = 0
+                        my_char.y = 350
+                        loadGame();
+                        state = STATE_RUN;
+                    }
+                    break;    
+                case STATE_RUN:
+                    //console.log("게임 스타트쪽 런임")     
+            }
+            //console.log("draw 앞임")
+            draw()
+        }
+        
+        //유저캐릭과 자동차 불러오기
+        function loadGame(){
+            loaded()
+            startFrame()
+        }  
+        
+        //게임 시작과 끝 텍스트, 차 배열 삭제
+        function draw(){
+            //console.log("draw로 옴")
+            ctx.clearRect(0,0,canvas.width, canvas.height);
+            switch(state) {
+                case STATE_WAIT:
+                    imgs.classList.add("on");
+                    //console.log("draw 스테이트 웨잇으로 옴")
+                    drawText(ctx, "게임 시작해보자잇!!", canvas.width/2, canvas.height/2 - 90, 
+                    "bold 60px arial","yellow ", "center", "middle");
+                    drawText(ctx, "커비를 반대편 거리로 안전하게 이동시켜주세요", canvas.width/2, canvas.height/2 - 10, 
+                    "bold 30px arial","green", "center", "middle");
+                    drawText(ctx, "Enter Key 누르면 시작",
+                    canvas.width/2, canvas.height/2+50, "bold 30px arial", "skyblue")
+                    
+                    break;
+                case STATE_RUN:
+                //console.log("draw쪽 스타트쪽 런임") 
+                case STATE_GAMEOVER:
+                //console.log("draw 게임 오버쪽임")
+                    if(state == STATE_GAMEOVER) {
+                        cars.forEach((car, index, arr) => {
+                        arr.splice(index, arr.length)
+                        //console.log(arr) 게임오버시 배열안에 있는 차들 삭제
+                        })
+                        cars2.forEach((car, index, arr) => {
+                            arr.splice(index, arr.length)
+                        })
+                        imgs.classList.add("on");
+                        drawRect(ctx, "rgba(0,0,0,0.8)", canvas.width/2-350, canvas.height/2-150, 700, 300)
+                        drawText(ctx, "무단횡단 하지맙시다ㅈㅈ", canvas.width/2, canvas.height/2-50,
+                        "60px arial", "white", "center", "middle")
+                        drawText(ctx, "GAME OVER", canvas.width/2, canvas.height/2+50,
+                        "60px arial", "white", "center", "middle")
+                    }        
+            }
+        }
+        
+        //state = 2
+///////////////////////////////////////////////////////////////////////////////////////////// 눈 
+
+        /* function snow() {
+        let W = canvas.width; //canvas 폭값 할당
+        let H = canvas.height; //canvas 높이값 할당
+
+        let mp = 100; //밀도 수치 /눈 배열 / 눈 내리는 양 (수가 적을수록 조금씩 위에서 아래로 떨어짐)
+        let particles = [];
+        //인덱스 100개 랜덤값으로 눈 x값위치, y값위치, 눈 크기
+        for(let i = 0; i < mp; i++) {
+            particles.push({
+                x: Math.random()*W, 
+                y: Math.random()*H, 
+                r: Math.random()*4+3, //입자 크기 최대치 조절
+                d: Math.random()*mp //밀도
+            })
+            console.log(particles) //배열 확인용
+        }
+        //눈 그리기
+        function snowDraw() {
+            //ctx.clearRect(0, 0, W, H); 
+            //클리어 안해주면 쭉~ 늘어남
+            ctx.fillStyle = "rgba(255, 255, 255, 0.8)"; //눈 입자 색깔
+            ctx.beginPath(); //새로운 경로 만들기
+            for(let i = 0; i < mp; i++) {
+                let p = particles[i];
+                ctx.moveTo(p.x, p.y); //눈이 x,y값으로 지정 
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI*2, true); //원형으로 지정
+        }
+        //ctx.stroke(); 위에 적힌 반복문안에서 지정해준 위치에 맞게 윤곽선 눈모양으로 그려줌
+        ctx.fill(); //위에 적힌 반복문안에서 지정해준 위치에 맞게 색을 채워줌
+        update();  //위에서 아래로 눈이 내리게 함수 호출
+        }
+
+       
+        function update() {//눈내림 애니메이션 효과주는 함수
+            for(let i = 0; i < mp; i++) {
+                let p = particles[i];
+                p.y += 1+ p.r / 5 //눈 내리는 속도(배열하나하나 속도가 다름)
+                if(p.x > W+5 || p.x < -5 || p.y > H) {
+                if(i % 3 > 0) { 
+                particles[i] = {x: Math.random()*W, y: -10, r: p.r};  
+                //y값만 지정해준 이유 맨 위에서 눈이 내려와야하기때문에 0~ -값으로 주면됨
+                //x값은 랜덤위치로 눈 뿌려줌
+                //r값은 눈 크기 
+                }    
+            }
+            
+        }
+        }
+        setInterval(snowDraw, 10);
+    } */
+        
+    </script>
+</body>
+</html>
